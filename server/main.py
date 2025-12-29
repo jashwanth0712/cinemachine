@@ -57,7 +57,7 @@ SAMPLE_RATE = 16000  # Input audio sample rate
 OUTPUT_SAMPLE_RATE = 24000  # Output audio sample rate
 
 # Initialize Gemini client
-client = genai.Client(api_key=GOOGLE_API_KEY)
+client = genai.Client(api_key=GOOGLE_API_KEY, http_options={"api_version": "v1alpha"})
 
 SYSTEM_INSTRUCTION = """You are a hidden live negotiation coach for the user. Your goal is to help the user negotiate effectively in real-time using the principles from the book "Never Split the Difference" by Chris Voss.
 
@@ -68,6 +68,7 @@ Your responsibilities:
 2.  **Methodology**: Apply techniques like Mirroring, Labeling, Tactical Empathy, Calibrated Questions, and Effective Pauses.
 3.  **Tool Use**: You have access to tools that you MUST use to provide specific recommendations. When you identify a situation where a technique is applicable, call the corresponding tool (e.g., `suggest_mirroring`, `suggest_labeling`).
 4.  **Feedback**: Provide concise, whisper-like advice to the user. Do not speak to the counterpart. You are coaching the user, not participating in the negotiation directly.
+5.  **Amount of recommendations**: Provide recommendations ONLY when strictly necessary. Do NOT fill silence. Do NOT respond to every sentence. Only intervene when a specific technique is clearly required to improve the negotiation.
 
 **CRITICAL: Output Format**
 Your audio output MUST follow this strict structure: `<technique>, <what to say>`.
@@ -148,6 +149,8 @@ class GeminiSession:
                 response_modalities=["AUDIO"],
                 tools=TOOLS,
                 system_instruction=types.Content(parts=[types.Part(text=SYSTEM_INSTRUCTION)]),
+                proactivity=types.ProactivityConfig(proactive_audio=True),
+                thinking_config=types.ThinkingConfig(include_thoughts=True, thinking_budget=1024),
             )
             
             # Connect to Gemini Live API - get the actual session object
