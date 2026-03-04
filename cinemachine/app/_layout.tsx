@@ -12,6 +12,7 @@ import {
   Nunito_900Black,
 } from '@expo-google-fonts/nunito';
 import { Colors } from '../constants/colors';
+import { AuthProvider } from '../context/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,7 +35,7 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -59,6 +60,6 @@ export default function RootLayout() {
           options={{ animation: 'fade' }}
         />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }

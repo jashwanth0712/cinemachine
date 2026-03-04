@@ -1,27 +1,81 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, StoryGradients } from '../../constants/colors';
 import { Fonts, FontSizes } from '../../constants/typography';
 import { Spacing, Radii, Shadows } from '../../constants/spacing';
-import { dummyStories } from '../../constants/dummyData';
 import { formatDuration } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
+import * as api from '../../services/api';
+import type { Story } from '../../types';
 
 export default function StoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const story = dummyStories.find((s) => s.id === id);
+  const { token } = useAuth();
 
-  if (!story) {
+  const [story, setStory] = useState<Story | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token || !id) {
+      setIsLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await api.getStory(token, id);
+        setStory(data);
+      } catch (err) {
+        console.warn('Failed to fetch story:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [token, id]);
+
+  // -----------------------------------------------------------------------
+  // Loading
+  // -----------------------------------------------------------------------
+
+  if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text>Story not found</Text>
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={Colors.orange} />
       </View>
     );
   }
 
-  const gradient = StoryGradients[story.gradientIndex % StoryGradients.length];
+  if (!story) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Text style={styles.errorText}>Story not found</Text>
+        <Pressable onPress={() => router.back()}>
+          <Text style={styles.backLink}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Derived data
+  // -----------------------------------------------------------------------
+
+  const gradient =
+    StoryGradients[story.gradient_index % StoryGradients.length];
+  const shots = story.shots ?? [];
+  const totalDuration =
+    story.total_duration ??
+    shots.reduce((sum, s) => sum + s.duration_seconds, 0);
 
   return (
     <ScrollView
@@ -41,45 +95,55 @@ export default function StoryDetailScreen() {
         <Text style={styles.heroEmoji}>{story.emoji}</Text>
         <Text style={styles.heroTitle}>{story.title}</Text>
         <Text style={styles.heroMeta}>
-          {story.shots.length} shots · {formatDuration(story.totalDuration)}
+          {shots.length} shots · {formatDuration(totalDuration)}
         </Text>
       </LinearGradient>
 
       {/* Info */}
       <View style={styles.infoSection}>
-        <Text style={styles.description}>{story.description}</Text>
+        {story.description ? (
+          <Text style={styles.description}>{story.description}</Text>
+        ) : null}
 
         <View style={styles.detailRow}>
           <View style={styles.detailItem}>
             <Text style={styles.detailLabel}>Character</Text>
-            <Text style={styles.detailValue}>{story.character}</Text>
+            <Text style={styles.detailValue}>
+              {story.character_name ?? 'TBD'}
+            </Text>
           </View>
           <View style={styles.detailItem}>
             <Text style={styles.detailLabel}>Setting</Text>
-            <Text style={styles.detailValue}>{story.setting}</Text>
+            <Text style={styles.detailValue}>
+              {story.setting ?? 'TBD'}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* Shots */}
-      <View style={styles.shotsSection}>
-        <Text style={styles.sectionTitle}>Shots</Text>
-        {story.shots.map((shot, index) => (
-          <View key={shot.id} style={[styles.shotCard, Shadows.soft]}>
-            <View style={styles.shotNumber}>
-              <Text style={styles.shotNumberText}>{index + 1}</Text>
+      {shots.length > 0 && (
+        <View style={styles.shotsSection}>
+          <Text style={styles.sectionTitle}>Shots</Text>
+          {shots.map((shot, index) => (
+            <View key={shot.id} style={[styles.shotCard, Shadows.soft]}>
+              <View style={styles.shotNumber}>
+                <Text style={styles.shotNumberText}>{index + 1}</Text>
+              </View>
+              <Text style={styles.shotEmoji}>{shot.emoji}</Text>
+              <View style={styles.shotInfo}>
+                <Text style={styles.shotTitle}>{shot.title}</Text>
+                {shot.description ? (
+                  <Text style={styles.shotDesc}>{shot.description}</Text>
+                ) : null}
+              </View>
+              <Text style={styles.shotDuration}>
+                {formatDuration(shot.duration_seconds)}
+              </Text>
             </View>
-            <Text style={styles.shotEmoji}>{shot.emoji}</Text>
-            <View style={styles.shotInfo}>
-              <Text style={styles.shotTitle}>{shot.title}</Text>
-              <Text style={styles.shotDesc}>{shot.description}</Text>
-            </View>
-            <Text style={styles.shotDuration}>
-              {formatDuration(shot.duration)}
-            </Text>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      )}
 
       {/* Play Button */}
       <Pressable
@@ -89,7 +153,10 @@ export default function StoryDetailScreen() {
           pressed && styles.playButtonPressed,
         ]}
         onPress={() =>
-          router.push({ pathname: '/story/preview', params: { id: story.id } })
+          router.push({
+            pathname: '/story/preview',
+            params: { id: story.id },
+          })
         }
       >
         <Text style={styles.playButtonText}>▶ Play Movie</Text>
@@ -102,6 +169,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.cream,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.lg,
+    color: Colors.gray500,
+    marginBottom: Spacing.md,
+  },
+  backLink: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.md,
+    color: Colors.orange,
   },
   scrollContent: {
     paddingBottom: 40,

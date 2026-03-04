@@ -14,18 +14,24 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.cinemachine.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Cinemachine needs camera access to record your amazing movies!"
+        "NSCameraUsageDescription": "Cinemachine needs camera access to record your amazing movies!",
+        "NSMicrophoneUsageDescription": "Cinemachine needs microphone access so you can talk to your AI director buddy!"
       }
     },
     "android": {
+      "package": "com.cinemachine.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFF8F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -36,7 +42,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Cinemachine needs camera access to record your amazing movies!"
+          "cameraPermission": "Cinemachine needs camera access to record your amazing movies!",
+          "microphonePermission": "Cinemachine needs microphone access so you can talk to your AI director buddy!"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Cinemachine needs microphone access so you can talk to your AI director buddy!"
         }
       ]
     ]

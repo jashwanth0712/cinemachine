@@ -1,11 +1,21 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Pressable,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/colors';
 import { Fonts, FontSizes } from '../../constants/typography';
 import { Spacing, Radii, Shadows } from '../../constants/spacing';
-import { dummyUserProfile } from '../../constants/dummyData';
 import { formatDuration } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
+import * as api from '../../services/api';
+import type { KidProfileStats, Badge } from '../../types';
 
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
@@ -18,8 +28,54 @@ function StatCard({ value, label }: { value: string; label: string }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const profile = dummyUserProfile;
-  const earnedBadges = profile.badges.filter((b) => b.earned).length;
+  const { currentKid, token, signOut } = useAuth();
+
+  const [profile, setProfile] = useState<KidProfileStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchProfile = useCallback(async () => {
+    if (!token || !currentKid) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const data = await api.getKidProfile(token, currentKid.id);
+      setProfile(data);
+    } catch (err) {
+      console.warn('Failed to fetch profile:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, currentKid]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  // -----------------------------------------------------------------------
+  // Loading
+  // -----------------------------------------------------------------------
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.orange} />
+      </View>
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Fallback if profile couldn't be loaded
+  // -----------------------------------------------------------------------
+
+  const name = profile?.name ?? currentKid?.name ?? 'Director';
+  const avatar = profile?.avatar_emoji ?? currentKid?.avatar_emoji ?? '🎬';
+  const title = profile?.title ?? currentKid?.title ?? 'Movie Director';
+  const storiesCount = profile?.stories_count ?? 0;
+  const totalShots = profile?.total_shots ?? 0;
+  const totalDuration = profile?.total_duration ?? 0;
+  const badges: Badge[] = profile?.badges ?? [];
+  const earnedBadges = badges.filter((b) => b.earned).length;
 
   return (
     <ScrollView
@@ -33,59 +89,74 @@ export default function ProfileScreen() {
           colors={[Colors.orange, Colors.salmon]}
           style={styles.avatarLarge}
         >
-          <Text style={styles.avatarLargeEmoji}>{profile.avatar}</Text>
+          <Text style={styles.avatarLargeEmoji}>{avatar}</Text>
         </LinearGradient>
-        <Text style={styles.name}>{profile.name}</Text>
+        <Text style={styles.name}>{name}</Text>
         <View style={styles.titleBadge}>
-          <Text style={styles.titleText}>{profile.title}</Text>
+          <Text style={styles.titleText}>{title}</Text>
         </View>
       </View>
 
       {/* Stats Grid */}
       <Text style={styles.sectionTitle}>Stats</Text>
       <View style={styles.statsGrid}>
-        <StatCard value={String(profile.storiesCount)} label="Stories" />
-        <StatCard value={String(profile.totalShots)} label="Shots" />
+        <StatCard value={String(storiesCount)} label="Stories" />
+        <StatCard value={String(totalShots)} label="Shots" />
         <StatCard
-          value={formatDuration(profile.totalDuration)}
+          value={formatDuration(totalDuration)}
           label="Total Time"
         />
         <StatCard
-          value={`${earnedBadges}/${profile.badges.length}`}
+          value={badges.length > 0 ? `${earnedBadges}/${badges.length}` : '0'}
           label="Badges"
         />
       </View>
 
       {/* Badges */}
-      <Text style={styles.sectionTitle}>Badges</Text>
-      <View style={styles.badgesRow}>
-        {profile.badges.map((badge) => (
-          <View
-            key={badge.id}
-            style={[
-              styles.badgeItem,
-              !badge.earned && styles.badgeItemUnearned,
-            ]}
-          >
-            <Text
-              style={[
-                styles.badgeEmoji,
-                !badge.earned && styles.badgeEmojiUnearned,
-              ]}
-            >
-              {badge.emoji}
-            </Text>
-            <Text
-              style={[
-                styles.badgeLabel,
-                !badge.earned && styles.badgeLabelUnearned,
-              ]}
-            >
-              {badge.title}
-            </Text>
+      {badges.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Badges</Text>
+          <View style={styles.badgesRow}>
+            {badges.map((badge) => (
+              <View
+                key={badge.id}
+                style={[
+                  styles.badgeItem,
+                  !badge.earned && styles.badgeItemUnearned,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.badgeEmoji,
+                    !badge.earned && styles.badgeEmojiUnearned,
+                  ]}
+                >
+                  {badge.emoji}
+                </Text>
+                <Text
+                  style={[
+                    styles.badgeLabel,
+                    !badge.earned && styles.badgeLabelUnearned,
+                  ]}
+                >
+                  {badge.title}
+                </Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        </>
+      )}
+
+      {/* Sign out */}
+      <Pressable
+        style={({ pressed }) => [
+          styles.signOutButton,
+          pressed && styles.signOutPressed,
+        ]}
+        onPress={signOut}
+      >
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -94,6 +165,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.cream,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     paddingHorizontal: Spacing.xl,
@@ -188,5 +263,21 @@ const styles = StyleSheet.create({
   },
   badgeLabelUnearned: {
     color: Colors.gray400,
+  },
+  signOutButton: {
+    marginTop: Spacing.xxl,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.gray200,
+  },
+  signOutPressed: {
+    opacity: 0.7,
+  },
+  signOutText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.md,
+    color: Colors.gray500,
   },
 });

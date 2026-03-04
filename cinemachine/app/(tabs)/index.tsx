@@ -1,29 +1,79 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Fonts, FontSizes } from '../../constants/typography';
 import { Spacing, Radii, Shadows } from '../../constants/spacing';
-import { dummyStories, dummyUserProfile } from '../../constants/dummyData';
+import { useAuth } from '../../context/AuthContext';
+import * as api from '../../services/api';
+import type { Story } from '../../types';
 import StoryCard from '../../components/StoryCard';
 import EmptyState from '../../components/EmptyState';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const stories = dummyStories;
+  const { currentKid, token } = useAuth();
+
+  const [stories, setStories] = useState<Story[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // -----------------------------------------------------------------------
+  // Fetch stories
+  // -----------------------------------------------------------------------
+
+  const fetchStories = useCallback(async () => {
+    if (!token || !currentKid) {
+      setStories([]);
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const data = await api.getStories(token, currentKid.id);
+      setStories(data);
+    } catch (err) {
+      console.warn('Failed to fetch stories:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, currentKid]);
+
+  useEffect(() => {
+    fetchStories();
+  }, [fetchStories]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchStories();
+    setIsRefreshing(false);
+  }, [fetchStories]);
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+
+  const kidName = currentKid?.name ?? 'Director';
+  const kidAvatar = currentKid?.avatar_emoji ?? '🎬';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>
-            Hello, {dummyUserProfile.name}! 👋
-          </Text>
+          <Text style={styles.greeting}>Hello, {kidName}! 👋</Text>
           <Text style={styles.subtitle}>Ready to make a movie?</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarEmoji}>{dummyUserProfile.avatar}</Text>
+          <Text style={styles.avatarEmoji}>{kidAvatar}</Text>
         </View>
       </View>
 
@@ -32,9 +82,21 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.orange}
+          />
+        }
       >
         <Text style={styles.sectionTitle}>My Stories</Text>
-        {stories.length === 0 ? (
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.orange} />
+          </View>
+        ) : stories.length === 0 ? (
           <EmptyState />
         ) : (
           <View style={styles.storyList}>
@@ -112,6 +174,10 @@ const styles = StyleSheet.create({
   },
   storyList: {
     gap: Spacing.lg,
+  },
+  loadingContainer: {
+    paddingVertical: Spacing.xxxl,
+    alignItems: 'center',
   },
   fab: {
     position: 'absolute',

@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__/
+*.pyc
+client_secret.json
+.env
+node_modules/

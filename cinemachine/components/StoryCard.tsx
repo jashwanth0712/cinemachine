@@ -5,14 +5,18 @@ import { Colors, StoryGradients } from '../constants/colors';
 import { Fonts, FontSizes } from '../constants/typography';
 import { Spacing, Radii, Shadows } from '../constants/spacing';
 import { formatDuration, formatDate, formatShotCount } from '../utils/formatters';
-import type { Story } from '../constants/dummyData';
+import type { Story } from '../types';
 
 interface StoryCardProps {
   story: Story;
 }
 
 export default function StoryCard({ story }: StoryCardProps) {
-  const gradient = StoryGradients[story.gradientIndex % StoryGradients.length];
+  const gradient = StoryGradients[story.gradient_index % StoryGradients.length];
+  const shotCount = story.shot_count ?? story.shots?.length ?? 0;
+  const totalDuration =
+    story.total_duration ??
+    (story.shots?.reduce((sum, s) => sum + s.duration_seconds, 0) ?? 0);
 
   return (
     <Pressable
@@ -31,19 +35,21 @@ export default function StoryCard({ story }: StoryCardProps) {
         <Text style={styles.title} numberOfLines={1}>
           {story.title}
         </Text>
-        <Text style={styles.description} numberOfLines={2}>
-          {story.description}
-        </Text>
+        {story.description ? (
+          <Text style={styles.description} numberOfLines={2}>
+            {story.description}
+          </Text>
+        ) : null}
         <View style={styles.meta}>
           <Text style={styles.metaText}>
-            {formatShotCount(story.shots.length)}
+            {formatShotCount(shotCount)}
           </Text>
           <Text style={styles.metaDot}>·</Text>
           <Text style={styles.metaText}>
-            {formatDuration(story.totalDuration)}
+            {formatDuration(totalDuration)}
           </Text>
           <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaText}>{formatDate(story.createdAt)}</Text>
+          <Text style={styles.metaText}>{formatDate(story.created_at)}</Text>
         </View>
       </View>
     </Pressable>
