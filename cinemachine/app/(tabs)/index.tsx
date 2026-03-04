@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -68,9 +69,15 @@ export default function HomeScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hello, {kidName}! 👋</Text>
-          <Text style={styles.subtitle}>Ready to make a movie?</Text>
+        <View style={styles.headerLeft}>
+          <Image
+            source={require('../../assets/cinemachine_logo.jpg')}
+            style={styles.headerLogo}
+          />
+          <View>
+            <Text style={styles.greeting}>Hello, {kidName}! 👋</Text>
+            <Text style={styles.subtitle}>Ready to make a movie?</Text>
+          </View>
         </View>
         <View style={styles.avatar}>
           <Text style={styles.avatarEmoji}>{kidAvatar}</Text>
@@ -135,6 +142,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
   },
   greeting: {
     fontFamily: Fonts.bold,

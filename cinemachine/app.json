@@ -4,11 +4,11 @@
     "slug": "cinemachine",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/cinemachine_logo.jpg",
     "userInterfaceStyle": "light",
     "scheme": "cinemachine",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/cinemachine_logo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#FFF8F0"
     },
@@ -24,9 +24,9 @@
       "package": "com.cinemachine.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFF8F0",
-        "foregroundImage": "./assets/android-icon-foreground.png",
+        "foregroundImage": "./assets/cinemachine_logo.jpg",
         "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "monochromeImage": "./assets/cinemachine_logo.jpg"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -34,7 +34,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/cinemachine_logo.jpg",
       "bundler": "metro"
     },
     "plugins": [
