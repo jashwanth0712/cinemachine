@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_IOS_CLIENT_ID: str = ""
+    JWT_SECRET: str = "change-me-in-production"
     ALLOWED_ORIGINS: str = "*"
     CLOUD_SQL_CONNECTION_NAME: str = "cinemachine-app:us-central1:cinemachine-db"
 

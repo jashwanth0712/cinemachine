@@ -19,6 +19,7 @@ interface AuthContextType {
   parent: Parent | null;
   kidProfiles: KidProfile[];
   currentKid: KidProfile | null;
+  hasPickedProfile: boolean;
   token: string | null;
   signIn: (googleIdToken: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -45,9 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [parent, setParent] = useState<Parent | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [kidProfiles, setKidProfiles] = useState<KidProfile[]>([]);
-  const [currentKid, setCurrentKid] = useState<KidProfile | null>(null);
+  const [currentKid, setCurrentKidState] = useState<KidProfile | null>(null);
+  const [hasPickedProfile, setHasPickedProfile] = useState(false);
 
   const isAuthenticated = !!parent && !!token;
+
+  const setCurrentKid = useCallback((kid: KidProfile) => {
+    setCurrentKidState(kid);
+    setHasPickedProfile(true);
+  }, []);
 
   // -----------------------------------------------------------------------
   // Restore session on mount
@@ -63,14 +70,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(storedToken);
           setParent(storedParent);
 
-          // Fetch kid profiles
+          // Fetch kid profiles — if the token is rejected (401),
+          // clear the session so the user is sent back to login.
           try {
             const profiles = await api.getKidProfiles(storedToken);
             setKidProfiles(profiles);
-            if (profiles.length > 0) {
-              setCurrentKid(profiles[0]);
+            if (profiles.length === 1) {
+              setCurrentKidState(profiles[0]);
+              setHasPickedProfile(true);
             }
-          } catch {
+            // If 2+ profiles, leave currentKid null so the picker shows
+          } catch (err: any) {
+            const is401 =
+              err?.status === 401 ||
+              err?.response?.status === 401 ||
+              err?.message?.includes('401');
+            if (is401) {
+              console.warn('Stored token rejected (401) — signing out');
+              await auth.signOut();
+              setParent(null);
+              setToken(null);
+              return;
+            }
             // API might be unreachable — session data is still valid
             console.warn('Failed to fetch kid profiles on restore');
           }
@@ -97,9 +118,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(authResponse.token);
         setKidProfiles(authResponse.kid_profiles);
 
-        if (authResponse.kid_profiles.length > 0) {
-          setCurrentKid(authResponse.kid_profiles[0]);
+        if (authResponse.kid_profiles.length === 1) {
+          setCurrentKidState(authResponse.kid_profiles[0]);
+          setHasPickedProfile(true);
         }
+        // If 2+ profiles, leave currentKid null so the picker shows
 
         return true;
       } catch (err) {
@@ -121,7 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setParent(null);
     setToken(null);
     setKidProfiles([]);
-    setCurrentKid(null);
+    setCurrentKidState(null);
+    setHasPickedProfile(false);
   }, []);
 
   // -----------------------------------------------------------------------
@@ -133,7 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!token) throw new Error('Not authenticated');
       const kid = await api.createKidProfile(token, name, avatarEmoji);
       setKidProfiles((prev) => [...prev, kid]);
-      setCurrentKid(kid);
+      setCurrentKidState(kid);
+      setHasPickedProfile(true);
       return kid;
     },
     [token]
@@ -146,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setKidProfiles(profiles);
       // If the current kid was removed, fall back to the first profile
       if (currentKid && !profiles.find((p) => p.id === currentKid.id)) {
-        setCurrentKid(profiles.length > 0 ? profiles[0] : null);
+        setCurrentKidState(profiles.length > 0 ? profiles[0] : null);
       }
     } catch {
       console.warn('Failed to refresh kid profiles');
@@ -163,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     parent,
     kidProfiles,
     currentKid,
+    hasPickedProfile,
     token,
     signIn,
     signOut: handleSignOut,

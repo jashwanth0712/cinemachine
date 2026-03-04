@@ -77,7 +77,10 @@ type Step = 'carousel' | 'signing_in' | 'create_kid';
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, signIn, createKidProfile } = useAuth();
+  const { isAuthenticated, signIn, createKidProfile, kidProfiles } = useAuth();
+
+  // If already authenticated with existing profiles, skip straight to create_kid
+  const isAddingProfile = isAuthenticated && kidProfiles.length > 0;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [step, setStep] = useState<Step>(
@@ -238,7 +241,9 @@ export default function OnboardingScreen() {
         contentContainerStyle={styles.createKidContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.createKidTitle}>Create a Profile</Text>
+        <Text style={styles.createKidTitle}>
+          {isAddingProfile ? 'Add a Profile' : 'Create a Profile'}
+        </Text>
         <Text style={styles.createKidSubtitle}>
           Who is the movie director?
         </Text>
@@ -294,7 +299,9 @@ export default function OnboardingScreen() {
           {isCreatingKid ? (
             <ActivityIndicator color={Colors.white} />
           ) : (
-            <Text style={styles.buttonText}>Start Making Movies!</Text>
+            <Text style={styles.buttonText}>
+              {isAddingProfile ? 'Create Profile' : 'Start Making Movies!'}
+            </Text>
           )}
         </Pressable>
       </ScrollView>

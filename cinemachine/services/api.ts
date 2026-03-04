@@ -31,7 +31,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // body wasn't JSON — keep the generic message
     }
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage) as Error & { status: number };
+    error.status = response.status;
+    throw error;
   }
   // 204 No Content — nothing to parse
   if (response.status === 204) {

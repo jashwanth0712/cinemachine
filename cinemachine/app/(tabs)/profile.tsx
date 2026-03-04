@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Fonts, FontSizes } from '../../constants/typography';
 import { Spacing, Radii, Shadows } from '../../constants/spacing';
@@ -28,7 +29,7 @@ function StatCard({ value, label }: { value: string; label: string }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { currentKid, token, signOut } = useAuth();
+  const { currentKid, token, signOut, kidProfiles } = useAuth();
 
   const [profile, setProfile] = useState<KidProfileStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,6 +146,19 @@ export default function ProfileScreen() {
             ))}
           </View>
         </>
+      )}
+
+      {/* Switch Profile */}
+      {kidProfiles.length >= 2 && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.switchProfileButton,
+            pressed && styles.signOutPressed,
+          ]}
+          onPress={() => router.replace('/select-profile')}
+        >
+          <Text style={styles.switchProfileText}>Switch Profile</Text>
+        </Pressable>
       )}
 
       {/* Sign out */}
@@ -264,8 +278,21 @@ const styles = StyleSheet.create({
   badgeLabelUnearned: {
     color: Colors.gray400,
   },
-  signOutButton: {
+  switchProfileButton: {
     marginTop: Spacing.xxl,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.orange + '20',
+  },
+  switchProfileText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.md,
+    color: Colors.orange,
+  },
+  signOutButton: {
+    marginTop: Spacing.lg,
     alignSelf: 'center',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,

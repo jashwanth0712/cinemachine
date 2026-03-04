@@ -8,6 +8,7 @@ from google.oauth2 import id_token as google_id_token
 
 from app.config import settings
 from app.database import get_pool
+from app.jwt_utils import create_access_token
 from app.models import AuthRequest, AuthResponse, KidProfile, Parent
 
 logger = logging.getLogger(__name__)
@@ -81,8 +82,13 @@ async def google_sign_in(body: AuthRequest) -> AuthResponse:
     )
     kid_profiles = [KidProfile(**dict(r)) for r in kid_rows]
 
+    jwt_token = create_access_token(
+        parent_id=str(parent.id),
+        google_id=google_id,
+    )
+
     return AuthResponse(
         parent=parent,
         kid_profiles=kid_profiles,
-        token=body.google_token,
+        token=jwt_token,
     )
