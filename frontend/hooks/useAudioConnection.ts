@@ -8,8 +8,8 @@ import base64js from 'base64-js';
 
 // For physical device, use your computer's IP address on the same WiFi network
 const BACKEND_URL = Platform.select({
-  ios: 'ws://YOUR_COMPUTER_IP:8000/ws',
-  android: 'ws://YOUR_COMPUTER_IP:8000/ws',
+  ios: 'ws://localhost:8000/ws',
+  android: 'ws://localhost:8000/ws',
   default: 'ws://localhost:8000/ws',
 });
 
