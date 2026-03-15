@@ -34,7 +34,7 @@ class GeminiLive:
         print(f"  Location: {location}")
         print(f"  Model: {model}")
         print(f"  Input Sample Rate: {input_sample_rate}")
-        
+
         # Initialize client
         self.client = genai.Client(vertexai=True, project=project_id, location=location)
         self.tool_mapping = {}

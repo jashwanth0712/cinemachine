@@ -24,7 +24,9 @@ class RecaptchaValidator:
         self.project_id = project_id
         self.recaptcha_key = recaptcha_key
         self.score_threshold = score_threshold
-        self.client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
+        self.client = None
+        if recaptcha_key:
+            self.client = recaptchaenterprise_v1.RecaptchaEnterpriseServiceClient()
 
     def validate_token(self, token: str, recaptcha_action: str) -> Dict[str, Any]:
         """
