@@ -7,13 +7,13 @@ using the laptop camera. Interactive conversation + camera + scene recording.
 PHASE 1: Raw Capture (Current)
 ------------------------------
 [x] Step 0: Organize notes
-[ ] Step 1: Create view-story-mode.js (camera + audio + Gemini Live)
-[ ] Step 2: Define tool calls (register_character, start/stop scene, export)
-[ ] Step 3: System instructions for story agent
-[ ] Step 4: Scene recording with MediaRecorder API
-[ ] Step 5: Video stitching & export (blob concatenation)
-[ ] Step 6: Wire into app-root.js routing
-[ ] Step 7: Add entry point to missions page
+[x] Step 1: Create view-story-mode.js (camera + audio + Gemini Live)
+[x] Step 2: Define tool calls (register_character, start/stop scene, export)
+[x] Step 3: System instructions for story agent
+[x] Step 4: Scene recording with MediaRecorder API
+[x] Step 5: Video stitching & export (blob concatenation)
+[x] Step 6: Wire into app-root.js routing
+[x] Step 7: Add entry point to missions page
 
 Session Flow:
   1. Kid clicks "Start Story" -> connect Gemini Live, start camera + mic

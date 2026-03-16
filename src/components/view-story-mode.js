@@ -37,81 +37,379 @@ class ViewStoryMode extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <button id="back-to-missions" style="
-        position: absolute;
-        top: var(--spacing-md);
-        left: var(--spacing-md);
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        opacity: 0.7;
-        transition: opacity 0.2s;
-        z-index: 10;
-      " onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-      </button>
+      <style>
+        /* --- Scoped color palette --- */
+        .story-mode-root {
+          --story-bg: #f9f5f0;
+          --story-surface: rgba(255, 248, 240, 0.85);
+          --story-surface-solid: #fff8f0;
+          --story-text-main: #3d3532;
+          --story-text-sub: #8a7e76;
+          --story-accent-primary: #b8c9a3;
+          --story-accent-secondary: #e0c4a8;
+          --story-accent-pink: #d4b5b0;
+          --story-accent-blue: #a8bec9;
 
-      <div class="container" style="justify-content: space-between; min-height: 100vh; position: relative; padding-bottom: var(--spacing-xl);">
+          background: var(--story-bg);
+          color: var(--story-text-main);
+          animation: story-fade-up 0.5s ease-out both;
+        }
 
-        <div style="margin-top: var(--spacing-xl); text-align: center;">
-          <h2 style="font-size: 1.5rem; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            CineMachine
-            <span style="
-              background: var(--color-accent-primary);
-              color: white;
-              font-size: 0.6rem;
-              font-weight: 800;
-              padding: 2px 6px;
-              border-radius: var(--radius-sm);
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            ">NEW</span>
-          </h2>
-          <p style="opacity: 0.7; font-size: 1rem; margin-top: 4px;">Create movies with your toys!</p>
-        </div>
+        /* --- Animations --- */
+        @keyframes story-fade-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes story-scale-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes story-bounce-in {
+          0% { opacity: 0; transform: scale(0.6) rotate(-6deg); }
+          60% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+          100% { transform: scale(1) rotate(var(--rot, 0deg)); }
+        }
+        @keyframes story-slide-in {
+          from { opacity: 0; transform: translateX(24px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes story-rec-glow {
+          0%, 100% { border-color: var(--story-accent-pink); box-shadow: 0 0 12px rgba(212, 181, 176, 0.3); }
+          50% { border-color: #c9a09a; box-shadow: 0 0 24px rgba(212, 181, 176, 0.5); }
+        }
+        @keyframes story-rec-dot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
+        }
+        @keyframes story-twinkle {
+          0%, 100% { opacity: 0.4; transform: scale(0.8) rotate(0deg); }
+          50% { opacity: 1; transform: scale(1.1) rotate(15deg); }
+        }
 
-        <!-- Camera Preview -->
-        <div id="camera-container" style="
+        /* --- Back button --- */
+        .story-back-btn {
+          position: absolute;
+          top: var(--spacing-md);
+          left: var(--spacing-md);
+          background: var(--story-surface);
+          border: 1px solid rgba(61, 53, 50, 0.1);
+          cursor: pointer;
+          padding: 8px 16px;
+          border-radius: 9999px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          opacity: 0.8;
+          transition: all 0.2s ease;
+          z-index: 10;
+          font-family: var(--font-body);
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: var(--story-text-main);
+        }
+        .story-back-btn:hover {
+          opacity: 1;
+          background: var(--story-surface-solid);
+          box-shadow: 0 2px 8px rgba(61, 53, 50, 0.1);
+        }
+
+        /* --- Camera --- */
+        .story-camera-container {
           width: 100%;
           max-width: 640px;
           aspect-ratio: 4/3;
           margin: var(--spacing-lg) auto;
-          border-radius: var(--radius-lg);
+          border-radius: 20px;
           overflow: hidden;
-          background: var(--color-surface);
-          border: var(--glass-border);
+          background: var(--story-surface-solid);
+          border: 2px solid rgba(61, 53, 50, 0.08);
+          box-shadow: 0 4px 20px rgba(61, 53, 50, 0.08);
           display: flex;
           align-items: center;
           justify-content: center;
           position: relative;
-        ">
-          <p id="camera-placeholder" style="opacity: 0.4; font-size: 0.9rem;">Camera preview will appear here</p>
-          <div id="recording-indicator" style="
-            display: none;
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            padding: 6px 12px;
-            border-radius: var(--radius-full);
-            font-size: 0.8rem;
-            font-weight: 700;
-            align-items: center;
-            gap: 8px;
-            z-index: 5;
-          ">
-            <div id="rec-dot" style="
-              width: 10px;
-              height: 10px;
-              border-radius: 50%;
-              background: #f44336;
-            "></div>
-            <span>REC</span>
+          animation: story-scale-in 0.4s ease-out 0.15s both;
+          transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .story-camera-recording {
+          border-color: var(--story-accent-pink) !important;
+          animation: story-rec-glow 2s ease-in-out infinite !important;
+        }
+
+        /* --- Viewfinder corners --- */
+        .story-camera-container .viewfinder-corner {
+          position: absolute;
+          width: 20px;
+          height: 20px;
+          border-color: var(--story-text-main);
+          border-style: solid;
+          border-width: 0;
+          opacity: 0.5;
+          z-index: 4;
+          pointer-events: none;
+        }
+        .story-camera-container .vf-tl { top: 12px; left: 12px; border-top-width: 2px; border-left-width: 2px; border-radius: 3px 0 0 0; }
+        .story-camera-container .vf-tr { top: 12px; right: 12px; border-top-width: 2px; border-right-width: 2px; border-radius: 0 3px 0 0; }
+        .story-camera-container .vf-bl { bottom: 12px; left: 12px; border-bottom-width: 2px; border-left-width: 2px; border-radius: 0 0 0 3px; }
+        .story-camera-container .vf-br { bottom: 12px; right: 12px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 3px 0; }
+
+        /* --- Recording indicator --- */
+        .story-rec-indicator {
+          display: none;
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(61, 53, 50, 0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          color: white;
+          padding: 6px 14px;
+          border-radius: 9999px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          align-items: center;
+          gap: 8px;
+          z-index: 5;
+        }
+        .story-rec-indicator .rec-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: white;
+          animation: story-rec-dot-pulse 1.2s ease-in-out infinite;
+        }
+
+        /* --- Scene counter overlay --- */
+        .story-scene-counter {
+          display: none;
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          background: rgba(61, 53, 50, 0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          color: white;
+          padding: 5px 12px;
+          border-radius: 9999px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          z-index: 5;
+        }
+
+        /* --- Character gallery --- */
+        .story-character-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          flex-shrink: 0;
+          cursor: default;
+        }
+        .story-character-polaroid {
+          width: 76px;
+          height: 86px;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(61, 53, 50, 0.1);
+          padding: 4px 4px 0 4px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transition: transform 0.2s ease;
+        }
+        .story-character-polaroid:hover {
+          transform: rotate(0deg) scale(1.06) !important;
+        }
+        .story-character-polaroid img {
+          width: 100%;
+          height: 60px;
+          object-fit: cover;
+          border-radius: 4px;
+          transform: scaleX(-1);
+        }
+        .story-character-polaroid .char-name {
+          font-size: 0.65rem;
+          font-weight: 700;
+          color: var(--story-text-main);
+          margin-top: 3px;
+          max-width: 66px;
+          text-align: center;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        /* --- Scene timeline --- */
+        .story-scene-card {
+          flex-shrink: 0;
+          position: relative;
+        }
+        .story-scene-frame {
+          width: 96px;
+          height: 64px;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(61, 53, 50, 0.1);
+          position: relative;
+          background: var(--story-surface-solid);
+          border: 1.5px solid rgba(61, 53, 50, 0.06);
+        }
+        .story-scene-frame::before,
+        .story-scene-frame::after {
+          content: '';
+          position: absolute;
+          left: 8px;
+          right: 8px;
+          height: 3px;
+          z-index: 2;
+          background: repeating-linear-gradient(
+            90deg,
+            rgba(61, 53, 50, 0.15) 0px,
+            rgba(61, 53, 50, 0.15) 3px,
+            transparent 3px,
+            transparent 7px
+          );
+        }
+        .story-scene-frame::before { top: 2px; }
+        .story-scene-frame::after { bottom: 2px; }
+        .story-scene-frame img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transform: scaleX(-1);
+        }
+        .story-scene-badge {
+          position: absolute;
+          top: -6px;
+          left: -6px;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: var(--story-accent-secondary);
+          color: var(--story-text-main);
+          font-size: 0.65rem;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 1px 4px rgba(61, 53, 50, 0.15);
+          z-index: 3;
+        }
+        .story-scene-duration {
+          position: absolute;
+          bottom: 6px;
+          right: 6px;
+          background: rgba(61, 53, 50, 0.55);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+          color: white;
+          font-size: 0.6rem;
+          font-weight: 600;
+          padding: 2px 7px;
+          border-radius: 9999px;
+          z-index: 3;
+        }
+
+        /* --- CTA button --- */
+        .story-cta-btn {
+          background: var(--story-accent-primary);
+          color: white;
+          padding: 18px 40px;
+          border-radius: 9999px;
+          width: auto;
+          min-width: 260px;
+          border: none;
+          box-shadow: 0 4px 16px rgba(184, 201, 163, 0.3);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 10;
+          transition: all 0.35s cubic-bezier(0.19, 1, 0.22, 1);
+          position: relative;
+          overflow: hidden;
+          font-family: var(--font-body);
+        }
+        .story-cta-btn:hover {
+          transform: translateY(-3px) scale(1.02);
+          box-shadow: 0 8px 28px rgba(184, 201, 163, 0.4);
+        }
+        .story-cta-btn:active {
+          transform: translateY(-1px) scale(0.98);
+        }
+        .story-cta-btn::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; width: 200%; height: 100%;
+          background: linear-gradient(115deg, transparent 0%, transparent 45%, rgba(255, 255, 255, 0.25) 50%, transparent 55%, transparent 100%);
+          transform: translateX(-150%) skewX(-15deg);
+          transition: transform 0.6s;
+        }
+        .story-cta-btn:hover::after {
+          transform: translateX(150%) skewX(-15deg);
+        }
+        .story-cta-btn.active {
+          background: var(--story-accent-pink) !important;
+          flex-direction: row !important;
+          gap: 10px;
+          box-shadow: 0 4px 16px rgba(212, 181, 176, 0.3) !important;
+        }
+
+        /* --- Scroll row (hidden scrollbar) --- */
+        .story-scroll-row {
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          padding: 8px 4px;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .story-scroll-row::-webkit-scrollbar { display: none; }
+
+        /* --- Section reveal --- */
+        .story-section-hidden {
+          opacity: 0;
+          transform: translateY(8px);
+          transition: opacity 0.35s ease, transform 0.35s ease;
+        }
+        .story-section-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      </style>
+
+      <div class="story-mode-root container" style="justify-content: flex-start; min-height: 100vh; position: relative; padding-bottom: var(--spacing-xl);">
+
+        <!-- Back button -->
+        <button id="back-to-missions" class="story-back-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          Back
+        </button>
+
+        <!-- Title -->
+        <div style="margin-top: var(--spacing-xl); text-align: center;">
+          <h2 style="font-size: 1.5rem; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--story-text-main);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--story-accent-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+            CineMachine
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="var(--story-accent-secondary)" stroke="none" style="animation: story-twinkle 2s ease-in-out infinite;">
+              <polygon points="12,2 15,10 24,10 17,15 19,23 12,18 5,23 7,15 0,10 9,10"/>
+            </svg>
+          </h2>
+          <p style="color: var(--story-text-sub); font-size: 1rem; margin-top: 4px;">Create movies with your toys!</p>
+        </div>
+
+        <!-- Camera Preview -->
+        <div id="camera-container" class="story-camera-container">
+          <div class="viewfinder-corner vf-tl"></div>
+          <div class="viewfinder-corner vf-tr"></div>
+          <div class="viewfinder-corner vf-bl"></div>
+          <div class="viewfinder-corner vf-br"></div>
+          <p id="camera-placeholder" style="opacity: 0.35; font-size: 0.9rem; color: var(--story-text-sub);">Camera preview will appear here</p>
+          <div id="recording-indicator" class="story-rec-indicator">
+            <div class="rec-dot"></div>
+            <span>Recording</span>
           </div>
+          <div id="scene-counter" class="story-scene-counter"></div>
         </div>
 
         <!-- Camera error -->
@@ -126,127 +424,65 @@ class ViewStoryMode extends HTMLElement {
         "></p>
 
         <!-- Character Gallery -->
-        <div id="character-gallery" style="
+        <div id="character-gallery" class="story-section-hidden" style="
           width: 100%;
           max-width: 640px;
           margin: 0 auto var(--spacing-md) auto;
           display: none;
         ">
-          <h4 style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-sub); margin-bottom: 8px;">Characters</h4>
-          <div id="character-list" style="
-            display: flex;
-            gap: 12px;
-            overflow-x: auto;
-            padding: 4px 0;
-          "></div>
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--story-text-sub); margin-bottom: 8px; font-family: var(--font-body);">Your Cast</h4>
+          <div id="character-list" class="story-scroll-row"></div>
         </div>
 
         <!-- Scene Timeline -->
-        <div id="scene-timeline" style="
+        <div id="scene-timeline" class="story-section-hidden" style="
           width: 100%;
           max-width: 640px;
           margin: 0 auto var(--spacing-md) auto;
           display: none;
         ">
-          <h4 style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-sub); margin-bottom: 8px;">Scenes</h4>
-          <div id="scene-list" style="
-            display: flex;
-            gap: 12px;
-            overflow-x: auto;
-            padding: 4px 0;
-          "></div>
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--story-text-sub); margin-bottom: 8px; font-family: var(--font-body);">Your Scenes</h4>
+          <div id="scene-list" class="story-scroll-row"></div>
         </div>
 
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
-          <!-- Model Visualizer -->
-          <div style="width: 100%; height: 120px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <audio-visualizer id="model-viz"></audio-visualizer>
-          </div>
+        <!-- Transcript -->
+        <div style="width: 100%; height: 180px; margin: 10px 0; position: relative;">
+          <live-transcript></live-transcript>
+        </div>
 
-          <!-- Transcript -->
-          <div style="width: 100%; height: 250px; margin: 10px 0; position: relative;">
-            <live-transcript></live-transcript>
+        <!-- Audio Visualizers (side by side) -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 24px; width: 100%; margin: 4px 0;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <div style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+              <audio-visualizer id="model-viz"></audio-visualizer>
+            </div>
+            <span style="font-size: 0.65rem; font-weight: 600; color: var(--story-text-sub);">Director</span>
           </div>
-
-          <!-- User Visualizer -->
-          <div style="width: 100%; height: 120px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <audio-visualizer id="user-viz"></audio-visualizer>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <div style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+              <audio-visualizer id="user-viz"></audio-visualizer>
+            </div>
+            <span style="font-size: 0.65rem; font-weight: 600; color: var(--story-text-sub);">You</span>
           </div>
         </div>
 
-        <style>
-          .story-cta-btn {
-            background: var(--color-accent-primary);
-            color: white;
-            padding: 24px 48px;
-            border-radius: var(--radius-lg);
-            width: auto;
-            min-width: 280px;
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5),
-                        0 0 0 1px rgba(255,255,255,0.2) inset;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 10;
-            transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-            position: relative;
-            overflow: hidden;
-            font-family: var(--font-body);
-          }
-
-          .story-cta-btn:hover {
-            transform: translateY(-5px) scale(1.02);
-            filter: brightness(1.1);
-            box-shadow: 0 20px 40px -10px rgba(163, 177, 138, 0.4),
-                        0 0 0 2px rgba(255,255,255,0.3) inset;
-          }
-
-          .story-cta-btn:active {
-            transform: translateY(-2px) scale(0.98);
-          }
-
-          .story-cta-btn::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; width: 200%; height: 100%;
-            background: linear-gradient(115deg, transparent 0%, transparent 45%, rgba(255, 255, 255, 0.3) 50%, transparent 55%, transparent 100%);
-            transform: translateX(-150%) skewX(-15deg);
-            transition: transform 0.6s;
-          }
-
-          .story-cta-btn:hover::after {
-            transform: translateX(150%) skewX(-15deg);
-          }
-
-          .story-cta-btn.active {
-            background: var(--color-danger) !important;
-            flex-direction: row !important;
-            gap: 12px;
-          }
-
-          @keyframes rec-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-          }
-        </style>
-
-        <div style="margin-bottom: var(--spacing-xxl); display: flex; flex-direction: column; gap: var(--spacing-lg); align-items: center;">
+        <!-- CTA Button -->
+        <div style="margin: var(--spacing-lg) 0 var(--spacing-xxl) 0; display: flex; flex-direction: column; gap: var(--spacing-md); align-items: center;">
           <button id="story-btn" class="story-cta-btn">
-            <span style="font-size: 1.3rem; font-weight: 800; margin-bottom: 2px; letter-spacing: 0.02em;">Start Story</span>
-            <span style="font-size: 0.85rem; opacity: 0.9; font-style: italic;">Create a movie with your toys!</span>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 1.2rem; font-weight: 800; letter-spacing: 0.02em;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+              Start Story
+            </span>
+            <span style="font-size: 0.8rem; opacity: 0.9; font-style: italic;">Create a movie with your toys!</span>
           </button>
 
           <p id="connection-status" style="
-            margin-top: var(--spacing-sm);
-            font-size: 0.9rem;
-            font-weight: 700;
+            margin-top: var(--spacing-xs);
+            font-size: 0.85rem;
+            font-weight: 600;
             height: 1.2em;
             transition: all 0.3s ease;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
+            color: var(--story-text-sub);
           "></p>
         </div>
       </div>
@@ -399,8 +635,8 @@ class ViewStoryMode extends HTMLElement {
       if (isActive) {
         storyBtn.classList.add("active");
         storyBtn.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-          <span style="font-weight: 800; font-size: 1.1rem; letter-spacing: 0.05em; text-transform: uppercase;">End Story</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+          <span style="font-weight: 800; font-size: 1.1rem; letter-spacing: 0.02em;">End Story</span>
         `;
       } else {
         storyBtn.classList.remove("active");
@@ -535,8 +771,8 @@ CAMERA AWARENESS:
           }
 
           console.log("[Story] Session active!");
-          statusEl.textContent = "Connected - let's make a movie!";
-          statusEl.style.color = "#4CAF50";
+          statusEl.textContent = "Connected — let's make a movie!";
+          statusEl.style.color = "var(--story-accent-primary)";
 
           const startSound = new Audio("/start-bell.mp3");
           startSound.volume = 0.6;
@@ -761,29 +997,22 @@ CAMERA AWARENESS:
     if (!gallery || !list) return;
 
     gallery.style.display = "block";
+    gallery.classList.add("story-section-visible");
     list.innerHTML = "";
 
-    this.characters.forEach((char) => {
+    this.characters.forEach((char, index) => {
+      const rotation = (Math.random() * 6 - 3).toFixed(1);
       const item = document.createElement("div");
-      item.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        flex-shrink: 0;
-      `;
+      item.className = "story-character-card";
       item.innerHTML = `
-        <div style="
-          width: 64px;
-          height: 64px;
-          border-radius: var(--radius-md);
-          overflow: hidden;
-          border: 2px solid var(--color-accent-primary);
-          box-shadow: var(--shadow-sm);
+        <div class="story-character-polaroid" style="
+          --rot: ${rotation}deg;
+          transform: rotate(${rotation}deg);
+          animation: story-bounce-in 0.4s ease-out ${index * 0.08}s both;
         ">
-          <img src="${char.thumbnail}" style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" />
+          <img src="${char.thumbnail}" />
+          <span class="char-name">${char.name}</span>
         </div>
-        <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-text-main); max-width: 70px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${char.name}</span>
       `;
       list.appendChild(item);
     });
@@ -795,44 +1024,21 @@ CAMERA AWARENESS:
     if (!timeline || !list) return;
 
     timeline.style.display = "block";
+    timeline.classList.add("story-section-visible");
     list.innerHTML = "";
 
     const sortedScenes = [...this.scenes].sort((a, b) => a.number - b.number);
 
-    sortedScenes.forEach((scene) => {
+    sortedScenes.forEach((scene, index) => {
       const item = document.createElement("div");
-      item.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        flex-shrink: 0;
-      `;
+      item.className = "story-scene-card";
+      item.style.animation = `story-slide-in 0.35s ease-out ${index * 0.1}s both`;
       item.innerHTML = `
-        <div style="
-          width: 80px;
-          height: 60px;
-          border-radius: var(--radius-sm);
-          overflow: hidden;
-          border: 2px solid var(--color-accent-secondary);
-          box-shadow: var(--shadow-sm);
-          position: relative;
-          background: var(--color-surface);
-        ">
-          ${scene.thumbnail ? `<img src="${scene.thumbnail}" style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);" />` : ""}
-          <div style="
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            font-size: 0.6rem;
-            padding: 2px 4px;
-            text-align: center;
-          ">${Math.round(scene.duration)}s</div>
+        <div class="story-scene-badge">${scene.number}</div>
+        <div class="story-scene-frame">
+          ${scene.thumbnail ? `<img src="${scene.thumbnail}" />` : ""}
+          <div class="story-scene-duration">${Math.round(scene.duration)}s</div>
         </div>
-        <span style="font-size: 0.7rem; font-weight: 700; color: var(--color-text-sub);">Scene ${scene.number}</span>
       `;
       list.appendChild(item);
     });
@@ -840,14 +1046,20 @@ CAMERA AWARENESS:
 
   updateRecordingIndicator(show) {
     const indicator = this.querySelector("#recording-indicator");
-    if (!indicator) return;
+    const cameraContainer = this.querySelector("#camera-container");
+    const sceneCounter = this.querySelector("#scene-counter");
 
     if (show) {
-      indicator.style.display = "flex";
-      const dot = indicator.querySelector("#rec-dot");
-      if (dot) dot.style.animation = "rec-pulse 1s infinite";
+      if (cameraContainer) cameraContainer.classList.add("story-camera-recording");
+      if (indicator) indicator.style.display = "flex";
+      if (sceneCounter && this.currentScene) {
+        sceneCounter.textContent = `Scene ${this.currentScene.number}`;
+        sceneCounter.style.display = "block";
+      }
     } else {
-      indicator.style.display = "none";
+      if (cameraContainer) cameraContainer.classList.remove("story-camera-recording");
+      if (indicator) indicator.style.display = "none";
+      if (sceneCounter) sceneCounter.style.display = "none";
     }
   }
 
@@ -868,8 +1080,11 @@ CAMERA AWARENESS:
   resetSession(btn, userViz, modelViz, statusEl) {
     btn.classList.remove("active");
     btn.innerHTML = `
-      <span style="font-size: 1.3rem; font-weight: 800; margin-bottom: 2px; letter-spacing: 0.02em;">Start Story</span>
-      <span style="font-size: 0.85rem; opacity: 0.9; font-style: italic;">Create a movie with your toys!</span>
+      <span style="display: flex; align-items: center; gap: 8px; font-size: 1.2rem; font-weight: 800; letter-spacing: 0.02em;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+        Start Story
+      </span>
+      <span style="font-size: 0.8rem; opacity: 0.9; font-style: italic;">Create a movie with your toys!</span>
     `;
     if (userViz && userViz.disconnect) userViz.disconnect();
     if (modelViz && modelViz.disconnect) modelViz.disconnect();
