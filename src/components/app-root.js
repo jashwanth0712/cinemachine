@@ -19,6 +19,7 @@ import './view-missions.js';
 import './view-chat.js';
 import './view-summary.js';
 import './view-visual-chat.js';
+import './view-story-mode.js';
 import './text-cycler.js';
 
 class AppRoot extends HTMLElement {
@@ -268,6 +269,11 @@ class AppRoot extends HTMLElement {
                 break;
             case 'visual':
                 currentView = document.createElement('view-visual-chat');
+                currentView.language = this.state.selectedLanguage;
+                currentView.fromLanguage = this.state.selectedFromLanguage;
+                break;
+            case 'story':
+                currentView = document.createElement('view-story-mode');
                 currentView.language = this.state.selectedLanguage;
                 currentView.fromLanguage = this.state.selectedFromLanguage;
                 break;

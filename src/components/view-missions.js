@@ -221,6 +221,55 @@ class ViewMissions extends HTMLElement {
             </div>
         </div>
 
+        <!-- CineMachine Story Mode Card -->
+        <div id="story-mode-card" style="
+            max-width: 900px;
+            margin: 0 auto var(--spacing-xl) auto;
+            background: var(--color-surface);
+            backdrop-filter: blur(20px);
+            border: var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
+        ">
+            <div style="font-size: 2.5rem; line-height: 1; flex-shrink: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                    <line x1="7" y1="2" x2="7" y2="22"></line>
+                    <line x1="17" y1="2" x2="17" y2="22"></line>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <line x1="2" y1="7" x2="7" y2="7"></line>
+                    <line x1="2" y1="17" x2="7" y2="17"></line>
+                    <line x1="17" y1="7" x2="22" y2="7"></line>
+                    <line x1="17" y1="17" x2="22" y2="17"></line>
+                </svg>
+            </div>
+            <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <h3 style="margin: 0; font-size: 1.3rem; color: var(--color-text-main);">CineMachine</h3>
+                    <span style="
+                        background: var(--color-accent-secondary);
+                        color: white;
+                        font-size: 0.6rem;
+                        font-weight: 800;
+                        padding: 2px 6px;
+                        border-radius: var(--radius-sm);
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    ">NEW</span>
+                </div>
+                <p style="margin: 0; font-size: 0.95rem; opacity: 0.7; line-height: 1.5;">Create movies with your toys! A voice director guides you through storytelling, character setup, and scene recording</p>
+            </div>
+            <div style="flex-shrink: 0; opacity: 0.4; font-size: 1.2rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </div>
+        </div>
+
         <div style="margin-bottom: var(--spacing-md); text-align: center;">
             <h2 style="font-size: 2.5rem; letter-spacing: -0.03em; margin-bottom: var(--spacing-xs);">Choose Your Quest</h2>
             <p style="opacity: 0.7; font-size: 1.1rem;">Select a scenario to begin your immersive practice</p>
@@ -411,6 +460,33 @@ class ViewMissions extends HTMLElement {
         bubbles: true,
         detail: {
           view: 'visual',
+          language: selectedToLang,
+          fromLanguage: selectedFromLang
+        }
+      }));
+    });
+
+    // Story Mode card
+    const storyCard = this.querySelector('#story-mode-card');
+    storyCard.addEventListener('mouseover', () => {
+      storyCard.style.transform = 'translateY(-3px)';
+      storyCard.style.boxShadow = 'var(--shadow-md)';
+    });
+    storyCard.addEventListener('mouseout', () => {
+      storyCard.style.transform = 'translateY(0)';
+      storyCard.style.boxShadow = 'var(--shadow-sm)';
+    });
+    storyCard.addEventListener('click', () => {
+      const selectedToLang = toSelect.value;
+      const selectedFromLang = fromSelect.value;
+
+      localStorage.setItem('immergo_language', selectedToLang);
+      localStorage.setItem('immergo_from_language', selectedFromLang);
+
+      this.dispatchEvent(new CustomEvent('navigate', {
+        bubbles: true,
+        detail: {
+          view: 'story',
           language: selectedToLang,
           fromLanguage: selectedFromLang
         }
