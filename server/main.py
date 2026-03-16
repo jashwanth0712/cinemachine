@@ -33,6 +33,7 @@ from server.gemini_live import GeminiLive
 from server.fingerprint import generate_fingerprint
 from server.simple_tracker import simpletrack
 from server.config_utils import get_project_id
+from server.pipeline import router as pipeline_router
 
 
 # Rate Limiting
@@ -104,6 +105,8 @@ async def startup_event():
             logger.error(f"❌ Redis connection failed: {e}")
             logger.error("Ensure Cloud Run is configured with a VPC Connector if using a private IP.")
 
+
+app.include_router(pipeline_router)
 
 app.add_middleware(
     CORSMiddleware,

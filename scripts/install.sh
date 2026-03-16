@@ -21,7 +21,13 @@ set -e
 echo "📦 Installing frontend dependencies..."
 npm install
 
-echo "Installing backend dependencies..."
-pip3 install -r requirements.txt
+echo "📦 Installing backend dependencies..."
+if [ -f "venv/bin/pip" ]; then
+    venv/bin/pip install -r requirements.txt
+elif command -v pip3 &> /dev/null; then
+    pip3 install -r requirements.txt
+else
+    python3 -m pip install -r requirements.txt
+fi
 
 echo "✅ Installation complete! You can now run ./dev.sh to start the app."

@@ -71,9 +71,10 @@ export DEV_MODE=true
 
 echo "🚀 Starting Backend (Uvicorn) on port 8000..."
 # Start Uvicorn in the background
-# Start Uvicorn in the background
 if [ -f "venv/bin/python" ]; then
     venv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload &
+elif [ -f "googleenv/bin/python" ]; then
+    googleenv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload &
 else
     python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload &
 fi

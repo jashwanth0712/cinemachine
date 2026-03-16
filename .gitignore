@@ -37,3 +37,5 @@ scripts/deploy.sh
 deploy.sh
 .pytest_cache/
 
+googleenv/
+example story/

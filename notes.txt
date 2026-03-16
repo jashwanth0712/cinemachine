@@ -44,3 +44,9 @@ PHASE 3: Polish (Future)
 [ ] Character profile cards
 [ ] Story script summary
 [ ] Share/social features
+
+Future plan:
+1.trimming out irrelevent clip
+2.background removal of the video such that only the toys are visible 
+3. use nano banana to replace the background with a relevant background it should look like a real animated story
+
