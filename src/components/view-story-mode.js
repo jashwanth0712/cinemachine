@@ -31,6 +31,10 @@ class ViewStoryMode extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (this.frameCaptureInterval) {
+      clearInterval(this.frameCaptureInterval);
+      this.frameCaptureInterval = null;
+    }
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       this.mediaRecorder.stop();
     }
@@ -857,7 +861,7 @@ CAMERA AWARENESS:
         } catch (e) {
           // Silently skip frame capture errors
         }
-      }, 500);
+      }, 1000); // 1 frame per second — fewer frames = faster pipeline
 
       this.isRecording = true;
       this.mediaRecorder.start(1000);
@@ -961,12 +965,18 @@ CAMERA AWARENESS:
     // Prefer composed blobs if available, fall back to raw recordings
     const blobs = sortedScenes.map((s) => s.composedBlob || s.blob);
     const hasComposed = sortedScenes.some((s) => s.composedBlob);
-    const combined = new Blob(blobs, { type: "video/webm" });
+    const hasVeo = sortedScenes.some((s) => {
+      const state = this.pipelineState[s.number];
+      return state && state.generationMethod === "veo";
+    });
+    const mimeType = hasVeo ? "video/mp4" : "video/webm";
+    const ext = hasVeo ? "mp4" : "webm";
+    const combined = new Blob(blobs, { type: mimeType });
 
     const url = URL.createObjectURL(combined);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "my-movie.webm";
+    a.download = `my-movie.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1089,11 +1099,13 @@ CAMERA AWARENESS:
   }
 
   // --- remove_background_keep_toys ---
+  // NEW: Instead of removing background, we describe the toy using Gemini Vision
+  // so Imagen can generate animated versions of it.
 
   async removeBackgroundKeepToys(callId, args) {
     try {
       const sceneNumber = args.scene_number || 1;
-      console.log("[Pipeline] Removing background for scene", sceneNumber);
+      console.log("[Pipeline] Describing toy for scene", sceneNumber);
 
       const scene = this.scenes.find((s) => s.number === sceneNumber);
       if (!scene) {
@@ -1109,77 +1121,63 @@ CAMERA AWARENESS:
       const foregroundObjects = this.characters.map((c) => c.name);
       state.foregroundObjects = foregroundObjects;
 
-      // Use live-captured frames (captured during recording from the camera)
+      // Pick the best frame to describe the toy (middle of recording)
       const frames = scene.liveFrames || [];
-      if (frames.length === 0) {
-        // Fallback: use the scene thumbnail
-        if (scene.thumbnail) {
-          frames.push(scene.thumbnail.split(",")[1]);
-        } else {
-          this.client.sendToolResponse(callId, {
-            foreground_objects: foregroundObjects,
-            mask_generated: false,
-            error: "No frames available for this scene",
-          });
-          return;
-        }
+      let bestFrame = null;
+      if (frames.length > 0) {
+        bestFrame = frames[Math.floor(frames.length / 2)];
+      } else if (scene.thumbnail) {
+        bestFrame = scene.thumbnail.split(",")[1];
       }
 
-      console.log(`[Pipeline] Processing ${frames.length} live frames for bg removal...`);
-
-      // Send frames to server for background removal
-      // Process in parallel batches of 3 for speed
-      const transparentFrames = [];
-      const batchSize = 3;
-
-      for (let i = 0; i < frames.length; i += batchSize) {
-        const batch = frames.slice(i, i + batchSize);
-        const promises = batch.map(async (frame, batchIdx) => {
-          try {
-            const response = await fetch("/api/pipeline/remove-background", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ image: frame }),
-            });
-
-            if (!response.ok) {
-              console.warn(`[Pipeline] Frame ${i + batchIdx} bg removal failed: ${response.status}`);
-              return null;
-            }
-
-            const data = await response.json();
-            return data.success ? data.image : null;
-          } catch (fetchErr) {
-            console.warn(`[Pipeline] Frame ${i + batchIdx} request failed:`, fetchErr);
-            return null;
-          }
+      if (!bestFrame) {
+        this.client.sendToolResponse(callId, {
+          foreground_objects: foregroundObjects,
+          mask_generated: false,
+          error: "No frames available for this scene",
         });
-
-        const results = await Promise.all(promises);
-        results.forEach((r) => { if (r) transparentFrames.push(r); });
-        console.log(`[Pipeline] Processed ${Math.min(i + batchSize, frames.length)}/${frames.length} frames...`);
+        return;
       }
 
-      if (transparentFrames.length === 0) {
-        console.warn("[Pipeline] No frames processed successfully, using originals");
-        state.transparentFrames = frames;
+      // Send to Gemini to describe the toy
+      console.log("[Pipeline] Sending toy image to Gemini for description...");
+      const toyName = foregroundObjects.length > 0 ? foregroundObjects[0] : "";
+
+      const response = await fetch("/api/pipeline/describe-toy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: bestFrame, toy_name: toyName }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.description) {
+          state.toyDescription = data.description;
+          console.log("[Pipeline] Toy described:", data.description.substring(0, 100));
+        }
       } else {
-        state.transparentFrames = transparentFrames;
+        console.warn("[Pipeline] Toy description failed, using name fallback");
+        state.toyDescription = `A cute animated ${toyName || "toy"} character, Pixar style`;
+      }
+
+      // If Gemini description failed, use a basic one
+      if (!state.toyDescription) {
+        state.toyDescription = `A cute animated ${toyName || "toy"} character, Pixar style`;
       }
 
       state.backgroundRemoved = true;
       this.updatePipelineStatus();
 
-      console.log(`[Pipeline] Background removed: ${transparentFrames.length}/${frames.length} frames`);
-
       this.client.sendToolResponse(callId, {
         foreground_objects: foregroundObjects,
-        mask_generated: transparentFrames.length > 0,
+        mask_generated: true,
         scene_number: sceneNumber,
-        frames_processed: transparentFrames.length,
-        total_frames: frames.length,
-        status: "background_removed",
+        toy_description: state.toyDescription,
+        status: "toy_described",
       });
+
+      // Auto-compose if bg generation also done
+      this.tryAutoCompose(sceneNumber);
     } catch (err) {
       console.error("[Pipeline] remove_background_keep_toys error:", err);
       this.client.sendToolResponse(callId, {
@@ -1191,23 +1189,40 @@ CAMERA AWARENESS:
   }
 
   // --- generate_story_background ---
+  // Calls the server to generate a full animated video (Veo) or storyboard frames (Imagen).
+  // The server tries Veo first for real video, falls back to Imagen storyboard.
 
   async generateStoryBackground(callId, args) {
     try {
       const backgroundPrompt = args.background_prompt || "";
-      const style = args.style || "3D animated children's movie";
+      const style = args.style || "Pixar 3D animated children's movie";
       const sceneNumber = args.scene_number || 1;
-      console.log("[Pipeline] Generating background for scene", sceneNumber, ":", backgroundPrompt);
+      console.log("[Pipeline] Generating animated video for scene", sceneNumber);
 
       const state = this.getPipelineState(sceneNumber);
       state.backgroundPrompt = backgroundPrompt;
       state.backgroundStyle = style;
 
-      console.log("[Pipeline] Calling server for background generation...");
-      const response = await fetch("/api/pipeline/generate-background", {
+      const toyDesc = state.toyDescription || "a cute animated toy character";
+      const setting = state.setting || "a colorful environment";
+      const cleanStory = state.cleanStory || backgroundPrompt;
+      const scene = this.scenes.find((s) => s.number === sceneNumber);
+      const duration = scene ? Math.min(Math.ceil(scene.duration || 8), 8) : 8;
+
+      console.log("[Pipeline] Calling server for video generation (Veo → Imagen fallback)...");
+
+      const response = await fetch("/api/pipeline/generate-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: backgroundPrompt, style: style }),
+        body: JSON.stringify({
+          toy_description: toyDesc,
+          clean_story: cleanStory,
+          setting: setting,
+          style: style,
+          duration_seconds: duration,
+        }),
+        // Long timeout — Veo can take up to 3 min, Imagen storyboard ~1 min
+        signal: AbortSignal.timeout(240000),
       });
 
       if (!response.ok) {
@@ -1216,12 +1231,25 @@ CAMERA AWARENESS:
       }
 
       const data = await response.json();
-      if (data.success && data.image) {
-        state.backgroundImage = data.image;
+
+      if (data.success && data.method === "veo" && data.video) {
+        // Veo returned real video clip(s) — convert base64 to blob
+        console.log("[Pipeline] Veo video received! Converting to blob...");
+        const videoBytes = Uint8Array.from(atob(data.video), (c) => c.charCodeAt(0));
+        const videoBlob = new Blob([videoBytes], { type: "video/mp4" });
+        state.generatedVideoBlob = videoBlob;
         state.backgroundGenerated = true;
-        console.log("[Pipeline] Background image generated successfully");
+        state.generationMethod = "veo";
+        state.videoMimeType = "video/mp4";
+        console.log(`[Pipeline] Veo video: ${(videoBlob.size / (1024 * 1024)).toFixed(1)}MB`);
+      } else if (data.success && data.method === "imagen" && data.frames) {
+        // Imagen storyboard frames
+        console.log(`[Pipeline] Imagen storyboard: ${data.frames.length} frames received`);
+        state.animatedFrames = data.frames;
+        state.backgroundGenerated = true;
+        state.generationMethod = "imagen";
       } else {
-        throw new Error("Server returned no image");
+        throw new Error("Server returned no video or frames");
       }
 
       this.updatePipelineStatus();
@@ -1231,241 +1259,239 @@ CAMERA AWARENESS:
         style: style,
         scene_number: sceneNumber,
         generated: true,
+        method: state.generationMethod,
+        frames_generated: state.animatedFrames ? state.animatedFrames.length : 0,
       });
+
+      this.tryAutoCompose(sceneNumber);
     } catch (err) {
       console.error("[Pipeline] generate_story_background error:", err);
 
       const state = this.getPipelineState(args.scene_number || 1);
       state.backgroundGenerated = true;
-      state.backgroundImage = null;
+      state.animatedFrames = null;
       this.updatePipelineStatus();
 
       this.client.sendToolResponse(callId, {
         background_prompt: args.background_prompt || "",
-        style: args.style || "",
         generated: false,
         error: err.message,
       });
+
+      this.tryAutoCompose(args.scene_number || 1);
     }
   }
 
-  // --- compose_animated_scene ---
+  // --- Auto-compose: triggers composition as soon as both prerequisites are ready ---
+  // This runs client-side so it works even if the Gemini session times out.
+
+  async tryAutoCompose(sceneNumber) {
+    const state = this.getPipelineState(sceneNumber);
+
+    // Need both bg removal and bg generation done
+    if (!state.backgroundRemoved || !state.backgroundGenerated) return;
+    // Don't re-compose
+    if (state.composed || state.composing) return;
+
+    state.composing = true;
+    console.log(`[Pipeline] Auto-composing scene ${sceneNumber}...`);
+
+    try {
+      await this.runComposition(sceneNumber);
+
+      // Auto-download the composed movie
+      console.log(`[Pipeline] Auto-downloading composed movie...`);
+      this.autoExportMovie();
+    } catch (err) {
+      console.error("[Pipeline] Auto-compose failed:", err);
+      state.composing = false;
+    }
+  }
+
+  // Auto-export: download whatever we have without needing Gemini to call export_movie
+  autoExportMovie() {
+    if (this.scenes.length === 0) return;
+
+    const sortedScenes = [...this.scenes].sort((a, b) => a.number - b.number);
+
+    // Check if any scene used Veo (MP4)
+    const hasVeo = sortedScenes.some((s) => {
+      const state = this.pipelineState[s.number];
+      return state && state.generationMethod === "veo";
+    });
+
+    const blobs = sortedScenes.map((s) => s.composedBlob || s.blob);
+    const mimeType = hasVeo ? "video/mp4" : "video/webm";
+    const ext = hasVeo ? "mp4" : "webm";
+    const combined = new Blob(blobs, { type: mimeType });
+
+    const url = URL.createObjectURL(combined);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `my-movie.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    console.log(`[Pipeline] Movie downloaded as ${ext}! (${(combined.size / 1024 / 1024).toFixed(1)}MB)`);
+  }
+
+  // --- compose_animated_scene (called by Gemini tool OR by auto-compose) ---
   // Creates a REAL animated video with Ken Burns effect (slow zoom + pan),
   // cross-fades between frames, and cinematic shadows at 24fps.
 
+  // Core composition logic — uses Veo video directly or creates video from Imagen frames.
+  async runComposition(sceneNumber) {
+    const state = this.getPipelineState(sceneNumber);
+    const scene = this.scenes.find((s) => s.number === sceneNumber);
+    if (!scene) throw new Error(`Scene ${sceneNumber} not found`);
+
+    // If Veo generated a real video, use it directly
+    if (state.generatedVideoBlob) {
+      console.log("[Pipeline] Using Veo-generated video directly!");
+      scene.composedBlob = state.generatedVideoBlob;
+      state.composed = true;
+      state.composing = false;
+      this.updatePipelineStatus();
+      this.updateSceneTimeline();
+      const sizeMB = (state.generatedVideoBlob.size / (1024 * 1024)).toFixed(1);
+      console.log(`[Pipeline] Scene ${sceneNumber} ready! Veo video ${sizeMB}MB`);
+      return { duration: 8, sizeMB, framesRendered: 0 };
+    }
+
+    // Otherwise, compose from Imagen storyboard frames
+    const frameData = state.animatedFrames || [];
+    if (frameData.length === 0) throw new Error("No animated frames available");
+
+    const W = 1280, H = 720;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    // Preload all animated frames as Image objects
+    console.log(`[Pipeline] Loading ${frameData.length} animated frames...`);
+    const images = [];
+    for (const b64 of frameData) {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; });
+      if (img.naturalWidth > 0) images.push(img);
+    }
+    if (images.length === 0) throw new Error("No valid animated frames loaded");
+
+    // Animation parameters
+    const OUTPUT_FPS = 24;
+    const SECONDS_PER_IMAGE = Math.max(3, (scene.duration || 8) / images.length);
+    const TOTAL_DURATION = SECONDS_PER_IMAGE * images.length;
+    const TOTAL_RENDER_FRAMES = Math.ceil(TOTAL_DURATION * OUTPUT_FPS);
+    const CROSSFADE_DURATION = 0.8; // seconds
+    const CROSSFADE_RENDER_FRAMES = Math.floor(CROSSFADE_DURATION * OUTPUT_FPS);
+
+    console.log(`[Pipeline] Rendering ${TOTAL_DURATION.toFixed(1)}s video at ${OUTPUT_FPS}fps (${images.length} animated images, ${SECONDS_PER_IMAGE.toFixed(1)}s each)`);
+
+    const stream = canvas.captureStream(OUTPUT_FPS);
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4000000 });
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const composedBlob = await new Promise((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+      recorder.start(100);
+
+      let renderFrame = 0;
+      const framesPerImage = TOTAL_RENDER_FRAMES / images.length;
+
+      const renderLoop = () => {
+        if (renderFrame >= TOTAL_RENDER_FRAMES) {
+          setTimeout(() => recorder.stop(), 300);
+          return;
+        }
+
+        const t = renderFrame / TOTAL_RENDER_FRAMES; // 0..1 overall progress
+        const currentIdx = Math.min(Math.floor(renderFrame / framesPerImage), images.length - 1);
+        const nextIdx = Math.min(currentIdx + 1, images.length - 1);
+        const posInCurrent = (renderFrame - currentIdx * framesPerImage) / framesPerImage; // 0..1 within this image
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw an image with Ken Burns effect
+        const drawImage = (img, alpha, progress) => {
+          if (!img || img.naturalWidth === 0) return;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+
+          // Ken Burns: slow zoom 1.0 -> 1.12 + slight pan
+          const zoom = 1.0 + progress * 0.12;
+          const panX = progress * 40;
+          const panY = progress * 15;
+
+          const iw = W * zoom;
+          const ih = H * zoom;
+          const ix = -(iw - W) / 2 - panX;
+          const iy = -(ih - H) / 2 - panY;
+
+          ctx.drawImage(img, ix, iy, iw, ih);
+          ctx.globalAlpha = 1.0;
+          ctx.restore();
+        };
+
+        // Check if we're in a crossfade zone
+        const fadeZone = CROSSFADE_RENDER_FRAMES / framesPerImage;
+        const isCrossfading = currentIdx !== nextIdx && posInCurrent > (1 - fadeZone);
+
+        if (isCrossfading) {
+          const fadeProgress = (posInCurrent - (1 - fadeZone)) / fadeZone;
+          drawImage(images[currentIdx], 1 - fadeProgress, posInCurrent);
+          drawImage(images[nextIdx], fadeProgress, fadeProgress * 0.1);
+        } else {
+          drawImage(images[currentIdx], 1.0, posInCurrent);
+        }
+
+        renderFrame++;
+        setTimeout(renderLoop, 1000 / OUTPUT_FPS);
+      };
+      renderLoop();
+    });
+
+    scene.composedBlob = composedBlob;
+    state.composed = true;
+    state.composing = false;
+    this.updatePipelineStatus();
+    this.updateSceneTimeline();
+
+    const sizeMB = (composedBlob.size / (1024 * 1024)).toFixed(1);
+    console.log(`[Pipeline] Scene ${sceneNumber} composed! ${TOTAL_DURATION.toFixed(1)}s video, ${sizeMB}MB`);
+    return { duration: TOTAL_DURATION, sizeMB, framesRendered: TOTAL_RENDER_FRAMES };
+  }
+
+  // Tool call handler — delegates to runComposition
   async composeAnimatedScene(callId, args) {
     try {
       const sceneNumber = args.scene_number || 1;
-      console.log("[Pipeline] Composing animated scene", sceneNumber);
-
       const state = this.getPipelineState(sceneNumber);
-      const scene = this.scenes.find((s) => s.number === sceneNumber);
 
-      if (!scene) {
+      if (state.composed) {
+        // Already composed by auto-compose
         this.client.sendToolResponse(callId, {
-          scene_rendered: false,
-          error: `Scene ${sceneNumber} not found`,
+          scene_rendered: true, scene_number: sceneNumber, status: "already_composed",
         });
         return;
       }
 
-      if (!state.backgroundRemoved || !state.transparentFrames || state.transparentFrames.length === 0) {
-        this.client.sendToolResponse(callId, {
-          scene_rendered: false,
-          error: `No foreground frames for scene ${sceneNumber}. Call remove_background_keep_toys first.`,
-        });
-        return;
-      }
-
-      // Set up composition canvas at 720p
-      const W = 1280, H = 720;
-      const canvas = document.createElement("canvas");
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext("2d");
-
-      // Load background image
-      let bgImg = null;
-      if (state.backgroundImage) {
-        bgImg = new Image();
-        bgImg.src = `data:image/png;base64,${state.backgroundImage}`;
-        await new Promise((resolve) => {
-          bgImg.onload = resolve;
-          bgImg.onerror = () => { bgImg = null; resolve(); };
-        });
-      }
-
-      // Preload all foreground frames as Image objects
-      console.log(`[Pipeline] Loading ${state.transparentFrames.length} foreground frames...`);
-      const fgImages = [];
-      for (const frameB64 of state.transparentFrames) {
-        const img = new Image();
-        img.src = `data:image/png;base64,${frameB64}`;
-        await new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-        if (img.naturalWidth > 0) fgImages.push(img);
-      }
-
-      if (fgImages.length === 0) {
-        this.client.sendToolResponse(callId, {
-          scene_rendered: false,
-          error: "No valid foreground frames to compose",
-        });
-        return;
-      }
-
-      // Animation parameters
-      const OUTPUT_FPS = 24;
-      const SECONDS_PER_FRAME = Math.max(1.5, (scene.duration || 5) / fgImages.length);
-      const TOTAL_DURATION = SECONDS_PER_FRAME * fgImages.length;
-      const TOTAL_RENDER_FRAMES = Math.ceil(TOTAL_DURATION * OUTPUT_FPS);
-      const CROSSFADE_FRAMES = Math.floor(OUTPUT_FPS * 0.4); // 0.4s crossfade
-
-      console.log(`[Pipeline] Rendering ${TOTAL_RENDER_FRAMES} frames at ${OUTPUT_FPS}fps (${TOTAL_DURATION.toFixed(1)}s video, ${fgImages.length} source frames)`);
-
-      // Start recording from the canvas at the target fps
-      const stream = canvas.captureStream(OUTPUT_FPS);
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
-      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
-      const composedBlob = await new Promise((resolve) => {
-        recorder.onstop = () => {
-          resolve(new Blob(chunks, { type: "video/webm" }));
-        };
-
-        recorder.start(100);
-
-        let renderFrame = 0;
-
-        const renderLoop = () => {
-          if (renderFrame >= TOTAL_RENDER_FRAMES) {
-            setTimeout(() => recorder.stop(), 200);
-            return;
-          }
-
-          const t = renderFrame / TOTAL_RENDER_FRAMES; // 0..1 overall progress
-
-          // Figure out which foreground frame(s) to show
-          const frameProgress = t * fgImages.length;
-          const currentIdx = Math.min(Math.floor(frameProgress), fgImages.length - 1);
-          const nextIdx = Math.min(currentIdx + 1, fgImages.length - 1);
-          const frameFraction = frameProgress - currentIdx;
-
-          // --- Draw background with slow pan + zoom (Ken Burns) ---
-          ctx.clearRect(0, 0, W, H);
-
-          if (bgImg) {
-            ctx.save();
-            // Slow zoom: 1.0 -> 1.15 over the video
-            const zoom = 1.0 + t * 0.15;
-            // Slow pan: shift horizontally
-            const panX = t * 80;
-            const panY = t * 30;
-
-            const bw = W * zoom;
-            const bh = H * zoom;
-            const bx = -(bw - W) / 2 - panX;
-            const by = -(bh - H) / 2 - panY;
-
-            ctx.drawImage(bgImg, bx, by, bw, bh);
-            ctx.restore();
-          } else {
-            // Fallback gradient
-            const grad = ctx.createLinearGradient(0, 0, 0, H);
-            grad.addColorStop(0, "#1a1a2e");
-            grad.addColorStop(1, "#16213e");
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, W, H);
-          }
-
-          // --- Draw foreground toy(s) with crossfade ---
-          const drawForeground = (img, alpha) => {
-            if (!img || img.naturalWidth === 0) return;
-
-            ctx.save();
-            ctx.globalAlpha = alpha;
-
-            // Slight slow zoom on the toy for cinematic feel
-            const toyZoom = 1.0 + t * 0.05;
-
-            // Scale toy to ~70% of canvas height, centered
-            const baseScale = Math.min(
-              (W * 0.8) / img.naturalWidth,
-              (H * 0.7) / img.naturalHeight
-            );
-            const scale = baseScale * toyZoom;
-            const w = img.naturalWidth * scale;
-            const h = img.naturalHeight * scale;
-            const x = (W - w) / 2;
-            const y = (H - h) / 2 + H * 0.05; // slightly below center
-
-            // Soft shadow
-            ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-            ctx.shadowBlur = 30;
-            ctx.shadowOffsetX = 8;
-            ctx.shadowOffsetY = 15;
-
-            ctx.drawImage(img, x, y, w, h);
-
-            ctx.shadowColor = "transparent";
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-
-            ctx.globalAlpha = 1.0;
-            ctx.restore();
-          };
-
-          // Check if we're in a crossfade zone between two frames
-          const framesPerSource = TOTAL_RENDER_FRAMES / fgImages.length;
-          const posInCurrentFrame = (renderFrame % framesPerSource) / framesPerSource;
-          const isCrossfading = currentIdx !== nextIdx && posInCurrentFrame > (1 - CROSSFADE_FRAMES / framesPerSource);
-
-          if (isCrossfading) {
-            const fadeProgress = (posInCurrentFrame - (1 - CROSSFADE_FRAMES / framesPerSource)) / (CROSSFADE_FRAMES / framesPerSource);
-            drawForeground(fgImages[currentIdx], 1 - fadeProgress);
-            drawForeground(fgImages[nextIdx], fadeProgress);
-          } else {
-            drawForeground(fgImages[currentIdx], 1.0);
-          }
-
-          renderFrame++;
-          // Use requestAnimationFrame for smooth rendering, but throttle to target fps
-          setTimeout(renderLoop, 1000 / OUTPUT_FPS);
-        };
-
-        renderLoop();
-      });
-
-      // Store the composed video
-      scene.composedBlob = composedBlob;
-      state.composed = true;
-      this.updatePipelineStatus();
-      this.updateSceneTimeline();
-
-      const sizeMB = (composedBlob.size / (1024 * 1024)).toFixed(1);
-      console.log(`[Pipeline] Scene ${sceneNumber} composed! ${TOTAL_DURATION.toFixed(1)}s video, ${sizeMB}MB`);
-
+      const result = await this.runComposition(sceneNumber);
       this.client.sendToolResponse(callId, {
         scene_rendered: true,
         animation_style: "children animated movie",
-        duration: `${TOTAL_DURATION.toFixed(1)}s`,
+        duration: `${result.duration.toFixed(1)}s`,
         scene_number: sceneNumber,
-        video_size_mb: sizeMB,
-        frames_rendered: TOTAL_RENDER_FRAMES,
+        video_size_mb: result.sizeMB,
       });
     } catch (err) {
       console.error("[Pipeline] compose_animated_scene error:", err);
-      this.client.sendToolResponse(callId, {
-        scene_rendered: false,
-        error: err.message,
-      });
+      this.client.sendToolResponse(callId, { scene_rendered: false, error: err.message });
     }
   }
 
@@ -1507,9 +1533,9 @@ CAMERA AWARENESS:
       const steps = [
         { label: "Story", done: !!state.cleanStory },
         { label: "Setting", done: !!state.setting },
-        { label: "BG Remove", done: state.backgroundRemoved },
-        { label: "BG Generate", done: state.backgroundGenerated },
-        { label: "Compose", done: state.composed },
+        { label: "Describe Toy", done: state.backgroundRemoved },
+        { label: "Animate", done: state.backgroundGenerated },
+        { label: "Video", done: state.composed },
       ];
 
       const sceneItem = document.createElement("div");
@@ -1640,6 +1666,10 @@ CAMERA AWARENESS:
   // --- Session Management ---
 
   cleanupSession(userViz, modelViz) {
+    if (this.frameCaptureInterval) {
+      clearInterval(this.frameCaptureInterval);
+      this.frameCaptureInterval = null;
+    }
     if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
       this.mediaRecorder.stop();
     }
