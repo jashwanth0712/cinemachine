@@ -26,7 +26,7 @@ class AppRoot extends HTMLElement {
     constructor() {
         super();
         this.state = {
-            view: 'splash', // splash, missions, chat, summary
+            view: 'story', // splash, missions, chat, summary, story
             selectedMission: null,
             selectedLanguage: null,
             sessionResult: null
@@ -274,8 +274,6 @@ class AppRoot extends HTMLElement {
                 break;
             case 'story':
                 currentView = document.createElement('view-story-mode');
-                currentView.language = this.state.selectedLanguage;
-                currentView.fromLanguage = this.state.selectedFromLanguage;
                 break;
             case 'summary':
                 currentView = document.createElement('view-summary');

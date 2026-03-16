@@ -14,22 +14,12 @@ import {
 class ViewStoryMode extends HTMLElement {
   constructor() {
     super();
-    this._language = null;
-    this._fromLanguage = null;
     this.characters = [];
     this.scenes = [];
     this.currentScene = null;
     this.isRecording = false;
     this.mediaRecorder = null;
     this.recordedChunks = [];
-  }
-
-  set language(value) {
-    this._language = value;
-  }
-
-  set fromLanguage(value) {
-    this._fromLanguage = value;
   }
 
   connectedCallback() {
@@ -46,9 +36,6 @@ class ViewStoryMode extends HTMLElement {
   }
 
   render() {
-    const language = this._language || "French";
-    const fromLanguage = this._fromLanguage || "English";
-
     this.innerHTML = `
       <button id="back-to-missions" style="
         position: absolute;
@@ -70,28 +57,6 @@ class ViewStoryMode extends HTMLElement {
       <div class="container" style="justify-content: space-between; min-height: 100vh; position: relative; padding-bottom: var(--spacing-xl);">
 
         <div style="margin-top: var(--spacing-xl); text-align: center;">
-          <div style="
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--color-text-sub);
-            margin-bottom: var(--spacing-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            background: rgba(0,0,0,0.04);
-            padding: 4px 12px;
-            border-radius: var(--radius-full);
-            width: fit-content;
-            margin-left: auto;
-            margin-right: auto;
-            border: 1px solid rgba(0,0,0,0.05);
-          ">
-            <span>${fromLanguage}</span>
-            <span style="opacity: 0.3; font-weight: normal;">&#10132;</span>
-            <span style="color: var(--color-accent-primary);">${language}</span>
-          </div>
-
           <h2 style="font-size: 1.5rem; margin-bottom: 2px; display: flex; align-items: center; justify-content: center; gap: 8px;">
             CineMachine
             <span style="
@@ -291,8 +256,6 @@ class ViewStoryMode extends HTMLElement {
   }
 
   setupEventHandlers() {
-    const language = this._language || "French";
-    const fromLanguage = this._fromLanguage || "English";
     const userViz = this.querySelector("#user-viz");
     const modelViz = this.querySelector("#model-viz");
     const storyBtn = this.querySelector("#story-btn");
@@ -424,7 +387,7 @@ class ViewStoryMode extends HTMLElement {
       this.dispatchEvent(
         new CustomEvent("navigate", {
           bubbles: true,
-          detail: { view: "missions" },
+          detail: { view: "story" },
         })
       );
     });
@@ -445,7 +408,7 @@ class ViewStoryMode extends HTMLElement {
         this.dispatchEvent(
           new CustomEvent("navigate", {
             bubbles: true,
-            detail: { view: "missions" },
+            detail: { view: "story" },
           })
         );
         return;
@@ -462,10 +425,7 @@ class ViewStoryMode extends HTMLElement {
 ROLE:
 You are an enthusiastic, fun kids' movie director assistant called "CineMachine". You help kids create movies using their toys and a camera.
 You can see through the kid's camera in real-time.
-
-LANGUAGE:
-Speak primarily in ${language}. Use ${fromLanguage} for explanations if the kid seems confused.
-Encourage the kid to narrate and act in ${language} during scenes.
+Always speak in English.
 
 PERSONALITY:
 - Super enthusiastic and encouraging ("That's AMAZING!", "What a great character!")
